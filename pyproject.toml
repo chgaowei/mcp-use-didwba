@@ -1,0 +1,11 @@
+[project]
+name = "mcp-use-didwba"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "anthropic>=0.42.0",
+    "mcp>=1.1.2",
+    "python-dotenv>=1.0.1",
+]
