@@ -26,14 +26,12 @@ class MCPClient:
         Args:
             server_script_path: Server script path (.py or .js)
         """
-        print(f"\nConnecting to server script: {server_script_path}")
         is_python = server_script_path.endswith('.py')
         is_js = server_script_path.endswith('.js')
         if not (is_python or is_js):
             raise ValueError("Server script must be a .py or .js file")
             
         command = "python" if is_python else "node"
-        print(f"Using command: {command} {server_script_path}")
         
         server_params = StdioServerParameters(
             command=command,
@@ -41,30 +39,18 @@ class MCPClient:
             env=None
         )
         
-        print("Creating stdio_client...")
         stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
-        print("stdio_client created successfully")
-        
         self.stdio, self.write = stdio_transport
-        print("Obtained stdio and write streams")
         
-        print("Creating ClientSession...")
         self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
-        print("ClientSession created successfully")
-        
-        print("Initializing session...")
         await self.session.initialize()
-        print("Session initialization complete")
         
         # List available tools
-        print("Getting available tools...")
         response = await self.session.list_tools()
         tools = response.tools
-        print("\nConnected to server, available tools:", [tool.name for tool in tools])
 
     async def process_query(self, query: str) -> str:
         """Process query using Claude and available tools"""
-        print(f"\nProcessing query: {query}")
         messages = [
             {
                 "role": "user",
@@ -78,39 +64,29 @@ class MCPClient:
             "description": tool.description,
             "input_schema": tool.inputSchema
         } for tool in response.tools]
-        print(f"Available tools: {[tool['name'] for tool in available_tools]}")
 
-        try:
-            print("Calling Claude API...")
-            response = self.anthropic.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=1000,
-                messages=messages,
-                tools=available_tools
-            )
-            print("Claude API call successful")
-        except Exception as e:
-            print(f"Claude API call failed: {str(e)}")
-            raise
+        response = self.anthropic.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1000,
+            messages=messages,
+            tools=available_tools
+        )
 
         # Process response and tool calls
         tool_results = []
         final_text = []
 
-        print("\nProcessing Claude response...")
         for content in response.content:
             if content.type == 'text':
-                print("Received text response")
                 final_text.append(content.text)
             elif content.type == 'tool_use':
                 tool_name = content.name
                 tool_args = content.input
-                print(f"\nExecuting tool call: {tool_name}")
-                print(f"Tool arguments: {tool_args}")
+
+                print(f"Tool name: {tool_name}")
+                print(f"Tool args: {tool_args}")
                 
-                print(f"Starting tool execution: {tool_name}")
                 result = await self.session.call_tool(tool_name, tool_args)
-                print(f"Tool {tool_name} execution result: {result}")
                 tool_results.append({"call": tool_name, "result": result})
                 final_text.append(f"[Called tool {tool_name} with args {tool_args}]")
 
@@ -125,19 +101,15 @@ class MCPClient:
                     "content": result.content
                 })
 
-                print("\nContinuing conversation with Claude...")
                 response = self.anthropic.messages.create(
                     model="claude-3-5-sonnet-20241022",
                     max_tokens=1000,
                     messages=messages,
                 )
-                print("Claude response received")
 
                 final_text.append(response.content[0].text)
 
-        print("\nQuery processing complete")
         return "\n".join(final_text)
-            
 
     async def chat_loop(self):
         """Run interactive chat loop"""
@@ -145,7 +117,6 @@ class MCPClient:
         print("Enter your query or type 'quit' to exit.")
         
         while True:
-
             query = input("\nQuery: ").strip()
             
             if query.lower() == 'quit':
@@ -158,7 +129,6 @@ class MCPClient:
                 
             response = await self.process_query(query)
             print("\n" + response)
-                
 
     async def cleanup(self):
         """Clean up resources"""
@@ -169,8 +139,6 @@ async def main():
         print("Usage: python client.py <server_script_path>")
         sys.exit(1)
     
-    print(f"Server script path: {sys.argv[1]}")
-
     client = MCPClient()
     try:
         await client.connect_to_server(sys.argv[1])
@@ -181,7 +149,6 @@ async def main():
         print(f"\nError occurred: {str(e)}")
     finally:
         await client.cleanup()
-        print("Resource cleanup complete, program exiting")
 
 if __name__ == "__main__":
     asyncio.run(main())
